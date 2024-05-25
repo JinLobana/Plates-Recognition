@@ -2,9 +2,16 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 import glob2 as glob
+import argparse
+import os
+import json
 
 
-def preprocessing_img(img,img_hsv,img_grey):
+def preprocessing_img(input_dir,img,img_hsv,img_grey):
+
+    # Sprawdzenie, czy podany katalog istnieje
+    if not os.path.isdir(input_dir):
+        raise NotADirectoryError(f"Podany katalog nie istnieje: {input_dir}")
     
     for path in glob.glob("dane/train_1/*.jpg"):
         # Reading an image
@@ -60,10 +67,16 @@ def detecting_plate(grey_img):
 
     
 def main():
+
+    parser = argparse.ArgumentParser(description="Przetwarzanie obrazów")
+    parser.add_argument("input_dir", type=str, help="Ścieżka do katalogu ze zdjęciami.")
+    args = parser.parse_args()
+
+
     key = None
     img = []; img_hsv = []; img_grey = []
     i = 0 
-    preprocessing_img(img,img_hsv,img_grey)
+    preprocessing_img(args.input_dir, img, img_hsv, img_grey)
 
     while key != 27:
         if (key == ord('d')):
@@ -81,7 +94,9 @@ def main():
 
     cv2.destroyAllWindows()
 
-main()
+
+if __name__ == "__main__":
+    main()
 
 #         Testowany program zostanie uruchomiony z dwoma parametrami przekazanymi w linii poleceń: bezwzględną ścieżką do istniejącego folderu ze zdjęciami oraz bezwzględną ścieżką do nieistniejącego pliku wyjściowego.
 
