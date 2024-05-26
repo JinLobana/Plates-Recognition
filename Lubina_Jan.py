@@ -28,16 +28,14 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey):
 
 def detecting_plate(grey_img):
 
+    # basic filtering and morphological operations
+    kernel = np.ones((7,7),np.uint8)
     _, img_bin= cv2.threshold(grey_img, 157, 255, cv2.THRESH_BINARY)
     img_bin = cv2.medianBlur(img_bin, 5)
-
-    # # Define the kernel
-    # kernel = np.ones((4, 4), np.uint8)
-    # # Closing the image
-    # mask_purple = cv2.morphologyEx(mask_purple, cv2.MORPH_CLOSE, kernel, iterations=1)
+    opening = cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, kernel)
 
     # Counting each color
-    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(img_bin)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(opening)
 
     # Stwórz pusty obraz binarny o tych samych wymiarach co obraz etykiet
     binary_output = np.zeros(labels.shape, dtype=np.uint8)
@@ -48,22 +46,61 @@ def detecting_plate(grey_img):
                                                 stat[3] <= 300 and stat[3] >= 80 and stat[4] <= 90000 and stat[4] >= 30000):
             print("znalazlem!", stat)
             # Ustaw piksele odpowiadające znalezionemu komponentowi na 1 w obrazie binarnym
-            binary_output[labels == i] = 1
+            binary_output[labels == i] = 255
 
-    # Wyświetlenie obrazu binarnego przy użyciu OpenCV
-    cv2.imshow("Binary Output", binary_output * 255) 
+    # binary_output = cv2.morphologyEx(binary_output, cv2.MORPH_DILATE, kernel, iterations=10)
+    morphed_image = cv2.morphologyEx(binary_output, cv2.MORPH_CLOSE, kernel,iterations=50)
 
-    # Normalizuj obraz etykiet, aby przeskalować wartości do zakresu 0-255 (dla obrazu szarości)
-    # labels_normalized = cv2.normalize(labels, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
-    # # Alternatywnie, przekonwertuj etykiety na obraz kolorowy (do wyświetlania w kolorze)
-    # label_colormap = cv2.applyColorMap(labels_normalized, cv2.COLORMAP_JET)
+    # Znajdź kontury
+    contours, _ = cv2.findContours(morphed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Sprawdź, czy znaleziono jakiekolwiek kontury
+    if len(contours) == 0:
+        raise ValueError("Nie znaleziono żadnych konturów na obrazie.")
+    
+    # Znajdź największy kontur
+    largest_contour = max(contours, key=cv2.contourArea)
+    
+    # Określ punkty graniczne (rogi) konturu
+    epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+    approx = cv2.approxPolyDP(largest_contour, epsilon, True)
 
-    # # Wyświetlenie obrazu etykiet przy użyciu OpenCV
-    # cv2.imshow("Labels (grayscale)", labels_normalized)
-    # cv2.imshow("Labels (colormap)", label_colormap)
+    if len(approx) != 4:
+        raise ValueError("Nie znaleziono dokładnie czterech punktów granicznych.")
+    
+    # Wyodrębnij punkty graniczne
+    boundary_points = approx.reshape((4, 2))
+    
+    # Narysuj punkty graniczne na obrazie
+    for point in boundary_points:
+        cv2.circle(morphed_image, tuple(point), 10, (128, 128, 128), -1)
+    
+    # Narysuj kontur na obrazie
+    cv2.drawContours(morphed_image, [largest_contour], -1, (128, 128, 128), 2)
+    
+    # Wyświetlenie obrazu z zaznaczonymi punktami granicznymi
+    cv2.imshow("Boundary Points", morphed_image)
 
-    return img_bin
+    # Znalezienie współrzędnych wszystkich pikseli o wartości 1
+    # points = np.column_stack(np.where(binary_output == 255))
+    
+    # if points.size == 0:
+    #     raise ValueError("Nie znaleziono pikseli o wartości 1 na obrazie")
+
+    # # Ekstremalne współrzędne
+    # top_point = points[np.argmin(points[:, 0])]
+    # bottom_point = points[np.argmax(points[:, 0])]
+    # left_point = points[np.argmin(points[:, 1])]
+    # right_point = points[np.argmax(points[:, 1])]
+
+    # corners = np.array([top_point, bottom_point, left_point, right_point])
+    
+    # for corner in corners:
+    #     cv2.circle(binary_output, tuple(corner[::-1]), 5, (150, 0, 0), -1)
+    
+    # cv2.imshow("Trapezoid Corners", binary_output)
+
 
     
 def main():
@@ -86,9 +123,7 @@ def main():
         i = i%len(img)
 
         print(i, ":")
-        contour = detecting_plate(img_grey[i])
-        
-        cv2.imshow("img", contour)
+        detecting_plate(img_grey[i])
 
         key = cv2.waitKey(0)
 
