@@ -28,9 +28,14 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey):
 
 def detecting_plate(grey_img):
 
+    gray = grey_img.copy()
+    
     # basic filtering and morphological operations
     kernel = np.ones((7,7),np.uint8)
-    _, img_bin= cv2.threshold(grey_img, 157, 255, cv2.THRESH_BINARY)
+    _, img_bin= cv2.threshold(gray, 157, 255, cv2.THRESH_BINARY)
+    # TODO jeszcze mozna progowanie otsu sprobowac
+    
+    
     img_bin = cv2.medianBlur(img_bin, 5)
     opening = cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, kernel)
 
@@ -48,60 +53,57 @@ def detecting_plate(grey_img):
             # Ustaw piksele odpowiadające znalezionemu komponentowi na 1 w obrazie binarnym
             binary_output[labels == i] = 255
 
-    # binary_output = cv2.morphologyEx(binary_output, cv2.MORPH_DILATE, kernel, iterations=10)
-    morphed_image = cv2.morphologyEx(binary_output, cv2.MORPH_CLOSE, kernel,iterations=50)
-
-
+    # morphed_image = cv2.morphologyEx(binary_output, cv2.MORPH_DILATE, kernel, iterations=10)
+    morphed_image = cv2.morphologyEx(binary_output, cv2.MORPH_CLOSE, kernel,iterations=35)
+    
     # Znajdź kontury
-    contours, _ = cv2.findContours(morphed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(morphed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)# TODO wyprobowanie cv2.CHAIN_APPROX_TC89_L1 
     
     # Sprawdź, czy znaleziono jakiekolwiek kontury
     if len(contours) == 0:
         raise ValueError("Nie znaleziono żadnych konturów na obrazie.")
     
-    # Znajdź największy kontur
+    # # Znajdź największy kontur
     largest_contour = max(contours, key=cv2.contourArea)
     
-    # Określ punkty graniczne (rogi) konturu
-    epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+    # # Określ punkty graniczne (rogi) konturu
+    epsilon = 0.03 * cv2.arcLength(largest_contour, True)
     approx = cv2.approxPolyDP(largest_contour, epsilon, True)
-
+    
     if len(approx) != 4:
         raise ValueError("Nie znaleziono dokładnie czterech punktów granicznych.")
     
     # Wyodrębnij punkty graniczne
     boundary_points = approx.reshape((4, 2))
     
-    # Narysuj punkty graniczne na obrazie
+    # Narysuj punkty graniczne na obrazie 
     for point in boundary_points:
-        cv2.circle(morphed_image, tuple(point), 10, (128, 128, 128), -1)
+        cv2.circle(morphed_image, tuple(point), 10, (128, 128, 128), -1)  
+    cv2.drawContours(morphed_image, [approx], -1, (150, 155, 150), 3)
     
-    # Narysuj kontur na obrazie
-    cv2.drawContours(morphed_image, [largest_contour], -1, (128, 128, 128), 2)
+    # TODO wyciagnac rogi i po kolei je ułożyć, operacja przeksztalcenia 
+    # posortuj punkty graniczne od najmniejszej sumy pikseli do najwiekszej
+    sorted_points = sorted([point.tolist() for point in boundary_points], key=lambda point: point[0] + point[1])
+    sorted_points = np.float32(np.array(sorted_points))
+    # print(type(sorted_points), sorted_points)
+    
+    # perspective transformation
+    goal_points = np.float32([[0,0],[0,130],[700,0],[700,130]])
+    
+    M = cv2.getPerspectiveTransform(sorted_points, goal_points)
+    
+    dst = cv2.warpPerspective(gray,M,(700,130))
     
     # Wyświetlenie obrazu z zaznaczonymi punktami granicznymi
-    cv2.imshow("Boundary Points", morphed_image)
-
-    # Znalezienie współrzędnych wszystkich pikseli o wartości 1
-    # points = np.column_stack(np.where(binary_output == 255))
+    cv2.imshow("Grey img", gray)
+    # cv2.imshow("Boundary Points", morphed_image)
+    cv2.imshow("perspective transform", dst)
     
-    # if points.size == 0:
-    #     raise ValueError("Nie znaleziono pikseli o wartości 1 na obrazie")
-
-    # # Ekstremalne współrzędne
-    # top_point = points[np.argmin(points[:, 0])]
-    # bottom_point = points[np.argmax(points[:, 0])]
-    # left_point = points[np.argmin(points[:, 1])]
-    # right_point = points[np.argmax(points[:, 1])]
-
-    # corners = np.array([top_point, bottom_point, left_point, right_point])
-    
-    # for corner in corners:
-    #     cv2.circle(binary_output, tuple(corner[::-1]), 5, (150, 0, 0), -1)
-    
-    # cv2.imshow("Trapezoid Corners", binary_output)
+    return dst
 
 
+
+#TODO 
     
 def main():
 
@@ -123,7 +125,7 @@ def main():
         i = i%len(img)
 
         print(i, ":")
-        detecting_plate(img_grey[i])
+        plate = detecting_plate(img_grey[i])
 
         key = cv2.waitKey(0)
 
