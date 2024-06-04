@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw, ImageFont
 import os
 
-def generate_images(font_path, output_dir, characters, img_size=(100, 150)):
+def generate_images(font_path, output_dir, characters, img_size=(50, 80)):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -10,7 +10,7 @@ def generate_images(font_path, output_dir, characters, img_size=(100, 150)):
         draw = ImageDraw.Draw(img)
         
         # Load a font
-        font_size = 175  # You can adjust this size based on your needs
+        font_size = 80  # You can adjust this size based on your needs
         font = ImageFont.truetype(font_path, font_size)
         
         # Get the bounding box of the text
@@ -29,10 +29,10 @@ def generate_images(font_path, output_dir, characters, img_size=(100, 150)):
 
 if __name__ == "__main__":
     # Define the characters to include in the dataset
-    characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    characters = "ABCDEFGHIJKLMNOPRSTUVWXYZ0123456789"
     
     # Path to the font file (You can use any .ttf file available on your system)
-    font_path = "font/din-1451-std/DINEngschriftStd.otf"  # Update this path to your font file
+    font_path = "fonts/arklatrs-webfont.ttf"  # Update this path to your font file
     
     # Output directory to save the images
     output_dir = "dane/letters_digits"

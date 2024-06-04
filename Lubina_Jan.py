@@ -7,7 +7,7 @@ import os
 import json
 
 
-def preprocessing_img(input_dir,img,img_hsv,img_grey ,paths):
+def preprocessing_img(input_dir,img,img_hsv,img_grey,paths):
     """Basic preprocessing"""
     # Is directory real
     if not os.path.isdir(input_dir):
@@ -27,7 +27,7 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey ,paths):
         img_grey.append(temp_grey)
         
         # appending paths
-        paths.append(path)
+        paths.append(os.path.basename(path))
 
 def detecting_plate(grey_img):
     """finding plate on an image, extracting it"""
@@ -132,6 +132,8 @@ def plate_segmentation(plate):
     # Binary image with the same dimensions as labels
     binary_output = np.zeros(labels.shape, dtype=np.uint8)
 
+    rectangles = []
+    
     # Checking statistics, finding right connected components, drawing region of interest
     for i, (stat, centroid) in enumerate(zip(stats, centroids)):
         if (stat[4] <= 90000 and stat[4] >= 1300 and stat[3] >= 30):
@@ -142,34 +144,129 @@ def plate_segmentation(plate):
             # looking for corners of rectangles
             left_upper_x = int(stat[0] - 5)
             left_upper_y = int(stat[1] - 5)
-            right_lower_x = int(int(centroid[0]) + int(stat[2]/2) + 5)
-            right_lower_y = int(int(centroid[1]) + int(stat[3]/2) + 15)
+            right_lower_x = int(int(centroid[0]) + int(stat[2]/2) + 8)
+            right_lower_y = int(int(centroid[1]) + int(stat[3]/2) + 30)
+            
+            width = right_lower_x - left_upper_x
+            height = right_lower_y - left_upper_y
+            
+            # Extracting regions of interests
+            cropped_image = binary_output[left_upper_y:left_upper_y + height, left_upper_x:left_upper_x + width]
+            rectangles.append((cropped_image, left_upper_x))
             
             # drawing 
-            cv2.rectangle(binary_output, (left_upper_x, left_upper_y), (right_lower_x, right_lower_y), color=(150,150,150), thickness=1)
-            
+            # cv2.rectangle(binary_output, (left_upper_x, left_upper_y), (right_lower_x, right_lower_y), color=(150,150,150), thickness=1)
+    
+    # Sorting to get rectangles in order from left to right
+    rectangles_sorted = sorted(rectangles, key=lambda x: x[1])
+    # Deleting left upper from list
+    rectangles = [rect[0] for rect in rectangles_sorted]
     
     # Displaying images
-    cv2.imshow("img", labels_normlized)
-    cv2.imshow("connected components", binary_output)
+    # cv2.imshow("img", labels_normlized)
+    # for i, rectangle in enumerate(rectangles):
+    #     cv2.imshow(f"{i}", rectangle)
+    # cv2.imshow("connected components", binary_output)
     
-    # mam wyekstraktowane z obrazu binarnego litery/cyfry (wartość 255) w prostokątach. 
-    # Jakie podejście byłoby najlepsze do rozpoznania co to za litery/cyfry? Dopasowanie wzorców? uczenie maszynowe? 
-    # podaj plusy i minusy. czy są dostępne jakieś datasets dla uczenia maszynowego?
+    return rectangles
+     
+def creating_output():
+    pass
+
+def feature_descriptor(image, templates_and_paths):
+    """ using SIFT descriptor for matching templates with images"""
+    templates = templates_and_paths[:][0]
+    paths_of_templates = templates_and_paths[:][1]
+
+    lowe_ratio = 0.60
+    best_match_templates = []
+
+    # Initialize the SIFT detector algorithm
+    sift = cv2.SIFT_create()
+    queryKeypoints, queryDescriptors = sift.detectAndCompute(image, None)
+
+    if queryDescriptors is None:
+        print("No descriptors found in the query image.")
+        return best_match_templates
+
+    for template, template_path in zip(templates, paths_of_templates):
+        # Detect the keypoints and compute the descriptors for the train image (template)
+        print(template)
+        print(template_path)
+        trainKeypoints, trainDescriptors = sift.detectAndCompute(template, None)
+        
+        if trainDescriptors is None:
+            print("No descriptors found in the template.")
+            continue
+
+        # Initialize the Matcher for matching the keypoints
+        matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
+        
+        # Use KNN to find the two best matches for each descriptor
+        matches = matcher.knnMatch(queryDescriptors, trainDescriptors, k=2)
+        
+        # Apply Lowe's ratio test
+        good_matches = []
+        for m, n in matches:
+            if m.distance < lowe_ratio * n.distance:
+                good_matches.append(m)
+        
+        # Keep track of the template with the highest number of good matches
+        best_match_templates.append((template, template_path, len(good_matches)))
+
+    # Sort templates by the number of good matches in descending order
+    best_match_templates.sort(key=lambda x: x[2], reverse=True)
+
+    # Get the path of the best matching template
+    if best_match_templates:
+        best_template_path = best_match_templates[0][1]
+        print("Best matching template path:", best_template_path)
+        return best_match_templates[0][0]  # return the best matching template
+    else:
+        print("No good matches found.")
+        return None
+
+def template_matching(image, templates):
+        
+    best_match = None
+    best_match_value = 0
+    best_match_template = None
+
+    for id, template in templates.items():
+        res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+        
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        # print(max_val)
+        
+        best_match = 0
+        if max_val > best_match_value:
+            best_match_value = max_val
+            best_template = id
+            best_match_template = template
+    return best_match_template, best_template
     
 
-#TODO template matching
     
 def main():
-
+    """main function in plate detection"""
+    # Creating arguments for calling script
     parser = argparse.ArgumentParser(description="Przetwarzanie obrazów")
     parser.add_argument("input_dir", type=str, help="Ścieżka do katalogu ze zdjęciami.")
     args = parser.parse_args()
 
-
+    # Global variables
     key = None
     img = []; img_hsv = []; img_grey = []; paths = []
     i = 0 
+    templates = {}
+    
+    for path in glob.glob("dane/letters_digits/*.png"):
+        # Reading an image
+        # creating temporary variables
+        temp = cv2.imread(path,cv2.IMREAD_GRAYSCALE)
+        template_id = os.path.basename(path)[:-4]
+        templates[template_id] = temp
+    
     preprocessing_img(args.input_dir, img, img_hsv, img_grey, paths)
 
     while key != 27:
@@ -180,11 +277,25 @@ def main():
         i = i%len(img)
 
         print(i, ":")
+        
         plate = detecting_plate(img_grey[i])
         
-        plate_segmentation(plate)
-
+        rectangles = plate_segmentation(plate)
+        
+        
+        for ite, rectangle in enumerate(rectangles):
+            cv2.imshow(f"image {ite}", rectangle)
+            
+            
+            #best_template, template_path = feature_descriptor(rectangle, templates) 
+            template, template_path = template_matching(rectangle, templates)
+            cv2.imshow(f'Best Match Template {ite}', template)
+        
+        print(paths[i])
+        
         key = cv2.waitKey(0)
+
+        
 
     cv2.destroyAllWindows()
 
