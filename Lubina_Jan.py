@@ -170,9 +170,28 @@ def plate_segmentation(plate):
     
     return rectangles
      
-def creating_output():
-    pass
+def which_better_string(base, str1, str2):
+    """Function return string with more matches with base image"""
+    def hamming_distance(s1, s2):
+        """Calculate the Hamming distance between two strings of equal length."""
+        if len(s1) != len(s2):
+            raise ValueError("Strings must be of the same length")
+        return sum(ch1 != ch2 for ch1, ch2 in zip(s1, s2))
 
+    # Make strings the same length as the base by padding with spaces
+    max_len = len(base)
+    str1 = str1.ljust(max_len)
+    str2 = str2.ljust(max_len)
+
+    # Calculate Hamming distances
+    distance1 = hamming_distance(base, str1)
+    distance2 = hamming_distance(base, str2)
+
+    # Return the string with the smaller distance
+    return str1 if distance1 < distance2 else str2
+
+
+############## character recognition, OCR models ####################
 def feature_descriptor(image, templates):
     """ using SIFT descriptor for matching templates with images"""
     
@@ -253,8 +272,6 @@ def shapes_matching(image, templates):
     contour1 = max(contours1, key=cv2.contourArea)
     image_with_contours = cv2.drawContours(image.copy(), contour1, -1, (150, 155, 150), 2)
     
-    cv2.imshow("contour", image_with_contours)
-    
     for id, template in templates.items():
         contours2, _ = cv2.findContours(template, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         contour2 = max(contours2, key=cv2.contourArea)
@@ -267,7 +284,8 @@ def shapes_matching(image, templates):
             best_match_template = template
             
     return best_match_template, best_template
-    
+
+############## character recognition, OCR models ####################    
 def main():
     """main function in plate detection"""
     # Creating arguments for calling script
@@ -304,27 +322,34 @@ def main():
         plate = detecting_plate(img_grey[i])
         rectangles = plate_segmentation(plate)
         
+        # Variables for 
         output_path_matching = ""; output_path_description = ""; output_path_shapes = ""
+        
         for ite, rectangle in enumerate(rectangles):
-            # cv2.imshow(f"image {ite}", rectangle)
             
             # Methods for characters recognition
             best_template, template_path_description = feature_descriptor(rectangle, templates) 
-            # best_template, template_path_matching = template_matching(rectangle, templates)
             best_template, template_path_shapes = shapes_matching(rectangle, templates)
-            # cv2.imshow(f'Best Match Template {ite}', best_template)
+            
             output_path_description += template_path_description
-            # output_path_matching += template_path_matching
             output_path_shapes += template_path_shapes
+            
+            # best_template, template_path_matching = template_matching(rectangle, templates)
+            # output_path_matching += template_path_matching
+            
+            # Displaying best template
+            # cv2.imshow(f'Best Match Template {ite}', best_template)
             
             
         print("image:             ", paths[i])
-        print("output matching:   ", output_path_matching)
+        # print("output matching:   ", output_path_matching)
         print("output descriptor: ", output_path_description)
         print("output shapes:     ", output_path_shapes)
+        better = which_better_string(paths[i], output_path_description, output_path_shapes)
+        print("best:              ", better)
         
         
-        # cv2.imshow("img", img_grey[i])
+        cv2.imshow("img", img_grey[i])
         key = cv2.waitKey(0)
 
         
