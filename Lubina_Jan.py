@@ -7,11 +7,11 @@ import os
 import json
 
 
-def preprocessing_img(input_dir,img,img_hsv,img_grey):
-
-    # Sprawdzenie, czy podany katalog istnieje
+def preprocessing_img(input_dir,img,img_hsv,img_grey ,paths):
+    """Basic preprocessing"""
+    # Is directory real
     if not os.path.isdir(input_dir):
-        raise NotADirectoryError(f"Podany katalog nie istnieje: {input_dir}")
+        raise NotADirectoryError(f"Podana ścieżka nie jest katalogiem lub nie istnieje: {input_dir}")
     
     for path in glob.glob("dane/train_1/*.jpg"):
         # Reading an image
@@ -25,85 +25,128 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey):
         img.append(temp)
         img_hsv.append(temp_hsv)
         img_grey.append(temp_grey)
+        
+        # appending paths
+        paths.append(path)
 
 def detecting_plate(grey_img):
-
+    """finding plate on an image, extracting it"""
     gray = grey_img.copy()
     
     # basic filtering and morphological operations
     kernel = np.ones((7,7),np.uint8)
     _, img_bin= cv2.threshold(gray, 157, 255, cv2.THRESH_BINARY)
     # TODO jeszcze mozna progowanie otsu sprobowac
-    
-    
     img_bin = cv2.medianBlur(img_bin, 5)
     opening = cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, kernel)
 
-    # Counting each color
+    # creating list of connected components
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(opening)
 
-    # Stwórz pusty obraz binarny o tych samych wymiarach co obraz etykiet
+    # Binary image with the same dimensions as labels
     binary_output = np.zeros(labels.shape, dtype=np.uint8)
 
-    # Przejdź przez statystyki i znajdź komponenty spełniające warunki
+    # Checking statistics, finding right connected components
     for i, stat in enumerate(stats):
         if (stat[0] >= 50 and stat[0] <= 700 and stat[1] >= 50  and stat[1] <= 500 and stat[2] <= 900 and stat[2] >= 350 and 
                                                 stat[3] <= 300 and stat[3] >= 80 and stat[4] <= 90000 and stat[4] >= 30000):
             print("znalazlem!", stat)
-            # Ustaw piksele odpowiadające znalezionemu komponentowi na 1 w obrazie binarnym
+            # Writing ones to a binary image, where connected components is 
             binary_output[labels == i] = 255
 
     # morphed_image = cv2.morphologyEx(binary_output, cv2.MORPH_DILATE, kernel, iterations=10)
     morphed_image = cv2.morphologyEx(binary_output, cv2.MORPH_CLOSE, kernel,iterations=35)
     
-    # Znajdź kontury
+    # Looking for contours
     contours, _ = cv2.findContours(morphed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)# TODO wyprobowanie cv2.CHAIN_APPROX_TC89_L1 
     
-    # Sprawdź, czy znaleziono jakiekolwiek kontury
+    # Is there any contours?
     if len(contours) == 0:
         raise ValueError("Nie znaleziono żadnych konturów na obrazie.")
     
-    # # Znajdź największy kontur
+    # extracting the biggest contour
     largest_contour = max(contours, key=cv2.contourArea)
     
-    # # Określ punkty graniczne (rogi) konturu
+    # Aproximate biggest contour with poly function, looking for four corners
     epsilon = 0.03 * cv2.arcLength(largest_contour, True)
     approx = cv2.approxPolyDP(largest_contour, epsilon, True)
     
+    # Is there exactly four contours?
     if len(approx) != 4:
         raise ValueError("Nie znaleziono dokładnie czterech punktów granicznych.")
     
-    # Wyodrębnij punkty graniczne
+    # Reshaping corners
     boundary_points = approx.reshape((4, 2))
     
-    # Narysuj punkty graniczne na obrazie 
+    # Drawing contour and corners
     for point in boundary_points:
         cv2.circle(morphed_image, tuple(point), 10, (128, 128, 128), -1)  
     cv2.drawContours(morphed_image, [approx], -1, (150, 155, 150), 3)
     
-    # TODO wyciagnac rogi i po kolei je ułożyć, operacja przeksztalcenia 
-    # posortuj punkty graniczne od najmniejszej sumy pikseli do najwiekszej
+    # Sorting corners from the lowest sum of pixels (x + y) 
     sorted_points = sorted([point.tolist() for point in boundary_points], key=lambda point: point[0] + point[1])
     sorted_points = np.float32(np.array(sorted_points))
     # print(type(sorted_points), sorted_points)
     
-    # perspective transformation
+    # Perspective transformation
     goal_points = np.float32([[0,0],[0,130],[700,0],[700,130]])
     
     M = cv2.getPerspectiveTransform(sorted_points, goal_points)
     
     dst = cv2.warpPerspective(gray,M,(700,130))
     
-    # Wyświetlenie obrazu z zaznaczonymi punktami granicznymi
-    cv2.imshow("Grey img", gray)
+    # Showing images
+    # cv2.imshow("Grey img", gray)
     # cv2.imshow("Boundary Points", morphed_image)
-    cv2.imshow("perspective transform", dst)
+    # cv2.imshow("perspective transform", dst)
     
     return dst
 
+def plate_segmentation(plate):
+    """finding region of interest for every letter/number"""
+    plate_cp = plate.copy()
+    
+    # morphological transfomations
+    kernel = np.ones((5,5),np.uint8)
+    _, img_bin= cv2.threshold(plate_cp, 130, 255, cv2.THRESH_BINARY)
+    img_bin = cv2.medianBlur(img_bin, 5)
+    closing = cv2.morphologyEx(img_bin, cv2.MORPH_CLOSE, kernel)
+    
+    # contours, _ = cv2.findContours(closing, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
+    # for idx in range(int(len(contours))):
+    #     cv2.drawContours(closing, contours, idx, (150, 155, 150), 3)
+        
+    # add rounding box of white, for better character fragmentation    
+    img = np.ones((230, 800), dtype=np.uint8)*255
+    x_offset=y_offset=50
+    img[y_offset:y_offset+closing.shape[0], x_offset:x_offset+closing.shape[1]] = closing
+    
+    # making negative for binary image, for connected components function to work correctly
+    img_inverted = cv2.bitwise_not(img)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(img_inverted)
+    
+    # normalizing labels for gray scale labels
+    labels_normlized = cv2.normalize(labels, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    print(f"stats: \n {stats}")
+    
+    # Binary image with the same dimensions as labels
+    binary_output = np.zeros(labels.shape, dtype=np.uint8)
 
+    # Checking statistics, finding right connected components
+    for i, stat in enumerate(stats):
+        if (stat[0] >= 50 and stat[0] <= 700 and stat[1] >= 50  and stat[1] <= 500 and stat[2] <= 900 and stat[2] >= 350 and 
+                                                stat[3] <= 300 and stat[3] >= 80 and stat[4] <= 90000 and stat[4] >= 30000):
+            print("znalazlem!", stat)
+            # Writing ones to a binary image, where connected components is 
+            binary_output[labels == i] = 255
+    
+    # Displaying images
+    cv2.imshow("img", labels_normlized)
+    cv2.imshow("connected components", binary_output)
+    
 
-#TODO 
+# 14 | 54 | 14 | 54 | 40 | 43 | 14 | 43 | 14 | 43 | 14 | 43 | 14 | 43 | 14
+#TODO plate segmentation, template matching
     
 def main():
 
@@ -113,9 +156,9 @@ def main():
 
 
     key = None
-    img = []; img_hsv = []; img_grey = []
+    img = []; img_hsv = []; img_grey = []; paths = []
     i = 0 
-    preprocessing_img(args.input_dir, img, img_hsv, img_grey)
+    preprocessing_img(args.input_dir, img, img_hsv, img_grey, paths)
 
     while key != 27:
         if (key == ord('d')):
@@ -126,6 +169,8 @@ def main():
 
         print(i, ":")
         plate = detecting_plate(img_grey[i])
+        
+        plate_segmentation(plate)
 
         key = cv2.waitKey(0)
 
