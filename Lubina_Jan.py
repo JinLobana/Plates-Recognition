@@ -27,7 +27,7 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey,paths):
         img_grey.append(temp_grey)
         
         # appending paths
-        paths.append(os.path.basename(path))
+        paths.append(os.path.basename(path)[:-4])
 
 def detecting_plate(grey_img):
     """finding plate on an image, extracting it"""
@@ -173,26 +173,24 @@ def plate_segmentation(plate):
 def creating_output():
     pass
 
-def feature_descriptor(image, templates_and_paths):
+def feature_descriptor(image, templates):
     """ using SIFT descriptor for matching templates with images"""
-    templates = templates_and_paths[:][0]
-    paths_of_templates = templates_and_paths[:][1]
-
+    
     lowe_ratio = 0.60
     best_match_templates = []
-
-    # Initialize the SIFT detector algorithm
+    
+    # Initialize the ORB detector algorithm
+    # Detect the keypoints and compute the descriptors for the query image
     sift = cv2.SIFT_create()
     queryKeypoints, queryDescriptors = sift.detectAndCompute(image, None)
-
+    
     if queryDescriptors is None:
         print("No descriptors found in the query image.")
         return best_match_templates
 
-    for template, template_path in zip(templates, paths_of_templates):
+    for id, template in templates.items():
+        
         # Detect the keypoints and compute the descriptors for the train image (template)
-        print(template)
-        print(template_path)
         trainKeypoints, trainDescriptors = sift.detectAndCompute(template, None)
         
         if trainDescriptors is None:
@@ -200,10 +198,12 @@ def feature_descriptor(image, templates_and_paths):
             continue
 
         # Initialize the Matcher for matching the keypoints
+        # matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_BRUTEFORCE_HAMMING)
         matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
         
         # Use KNN to find the two best matches for each descriptor
         matches = matcher.knnMatch(queryDescriptors, trainDescriptors, k=2)
+        # matches = matcher.match(queryDescriptors, trainDescriptors)
         
         # Apply Lowe's ratio test
         good_matches = []
@@ -212,16 +212,14 @@ def feature_descriptor(image, templates_and_paths):
                 good_matches.append(m)
         
         # Keep track of the template with the highest number of good matches
-        best_match_templates.append((template, template_path, len(good_matches)))
+        best_match_templates.append((template, len(good_matches), id))
 
     # Sort templates by the number of good matches in descending order
-    best_match_templates.sort(key=lambda x: x[2], reverse=True)
-
-    # Get the path of the best matching template
+    best_match_templates.sort(key=lambda x: x[1], reverse=True)
+    
+    # Return the template with the highest number of good matches
     if best_match_templates:
-        best_template_path = best_match_templates[0][1]
-        print("Best matching template path:", best_template_path)
-        return best_match_templates[0][0]  # return the best matching template
+        return best_match_templates[0][0], best_match_templates[0][2]  # return the best matching template
     else:
         print("No good matches found.")
         return None
@@ -287,9 +285,11 @@ def main():
             cv2.imshow(f"image {ite}", rectangle)
             
             
-            #best_template, template_path = feature_descriptor(rectangle, templates) 
-            template, template_path = template_matching(rectangle, templates)
-            cv2.imshow(f'Best Match Template {ite}', template)
+            # best_template, template_path = feature_descriptor(rectangle, templates) 
+            
+            best_template, template_path = template_matching(rectangle, templates)
+            print("path:", template_path)
+            cv2.imshow(f'Best Match Template {ite}', best_template)
         
         print(paths[i])
         
