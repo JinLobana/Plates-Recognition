@@ -50,7 +50,7 @@ def detecting_plate(grey_img):
     for i, stat in enumerate(stats):
         if (stat[0] >= 50 and stat[0] <= 700 and stat[1] >= 50  and stat[1] <= 500 and stat[2] <= 900 and stat[2] >= 350 and 
                                                 stat[3] <= 300 and stat[3] >= 80 and stat[4] <= 90000 and stat[4] >= 30000):
-            print("znalazlem!", stat)
+            # print("znalazlem!", stat)
             # Writing ones to a binary image, where connected components is 
             binary_output[labels == i] = 255
 
@@ -127,26 +127,38 @@ def plate_segmentation(plate):
     
     # normalizing labels for gray scale labels
     labels_normlized = cv2.normalize(labels, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    print(f"stats: \n {stats}")
+    # print(f"stats: \n {stats}")
     
     # Binary image with the same dimensions as labels
     binary_output = np.zeros(labels.shape, dtype=np.uint8)
 
-    # Checking statistics, finding right connected components
-    for i, stat in enumerate(stats):
-        if (stat[0] >= 50 and stat[0] <= 700 and stat[1] >= 50  and stat[1] <= 500 and stat[2] <= 900 and stat[2] >= 350 and 
-                                                stat[3] <= 300 and stat[3] >= 80 and stat[4] <= 90000 and stat[4] >= 30000):
-            print("znalazlem!", stat)
+    # Checking statistics, finding right connected components, drawing region of interest
+    for i, (stat, centroid) in enumerate(zip(stats, centroids)):
+        if (stat[4] <= 90000 and stat[4] >= 1300 and stat[3] >= 30):
+            # print("znalazlem!", stat)
             # Writing ones to a binary image, where connected components is 
             binary_output[labels == i] = 255
+            
+            # looking for corners of rectangles
+            left_upper_x = int(stat[0] - 5)
+            left_upper_y = int(stat[1] - 5)
+            right_lower_x = int(int(centroid[0]) + int(stat[2]/2) + 5)
+            right_lower_y = int(int(centroid[1]) + int(stat[3]/2) + 15)
+            
+            # drawing 
+            cv2.rectangle(binary_output, (left_upper_x, left_upper_y), (right_lower_x, right_lower_y), color=(150,150,150), thickness=1)
+            
     
     # Displaying images
     cv2.imshow("img", labels_normlized)
     cv2.imshow("connected components", binary_output)
     
+    # mam wyekstraktowane z obrazu binarnego litery/cyfry (wartość 255) w prostokątach. 
+    # Jakie podejście byłoby najlepsze do rozpoznania co to za litery/cyfry? Dopasowanie wzorców? uczenie maszynowe? 
+    # podaj plusy i minusy. czy są dostępne jakieś datasets dla uczenia maszynowego?
+    
 
-# 14 | 54 | 14 | 54 | 40 | 43 | 14 | 43 | 14 | 43 | 14 | 43 | 14 | 43 | 14
-#TODO plate segmentation, template matching
+#TODO template matching
     
 def main():
 
