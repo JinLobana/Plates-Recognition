@@ -27,7 +27,7 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey,paths):
         img_grey.append(temp_grey)
         
         # appending paths
-        paths.append(os.path.basename(path)[:-4])
+        paths.append(os.path.basename(path))
 
 def detecting_plate(grey_img):
     """finding plate on an image, extracting it"""
@@ -225,7 +225,7 @@ def feature_descriptor(image, templates):
         return None
 
 def template_matching(image, templates):
-        
+    """Using normal template matching"""
     best_match = None
     best_match_value = 0
     best_match_template = None
@@ -243,7 +243,30 @@ def template_matching(image, templates):
             best_match_template = template
     return best_match_template, best_template
     
-
+def shapes_matching(image, templates):
+    """using matchShapes method to compare similarity between img and templates"""
+    
+    best_match_template = None
+    best_similarity = 100.0
+    
+    contours1, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    contour1 = max(contours1, key=cv2.contourArea)
+    image_with_contours = cv2.drawContours(image.copy(), contour1, -1, (150, 155, 150), 2)
+    
+    cv2.imshow("contour", image_with_contours)
+    
+    for id, template in templates.items():
+        contours2, _ = cv2.findContours(template, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contour2 = max(contours2, key=cv2.contourArea)
+        
+        similarity = cv2.matchShapes(contour1, contour2, cv2.CONTOURS_MATCH_I1, 0.0)
+        
+        if similarity < best_similarity:
+            best_similarity = similarity
+            best_template = id
+            best_match_template = template
+            
+    return best_match_template, best_template
     
 def main():
     """main function in plate detection"""
@@ -258,6 +281,7 @@ def main():
     i = 0 
     templates = {}
     
+    # Reading templates
     for path in glob.glob("dane/letters_digits/*.png"):
         # Reading an image
         # creating temporary variables
@@ -265,6 +289,7 @@ def main():
         template_id = os.path.basename(path)[:-4]
         templates[template_id] = temp
     
+    # Doing some preprocessing
     preprocessing_img(args.input_dir, img, img_hsv, img_grey, paths)
 
     while key != 27:
@@ -277,22 +302,29 @@ def main():
         print(i, ":")
         
         plate = detecting_plate(img_grey[i])
-        
         rectangles = plate_segmentation(plate)
         
-        
+        output_path_matching = ""; output_path_description = ""; output_path_shapes = ""
         for ite, rectangle in enumerate(rectangles):
-            cv2.imshow(f"image {ite}", rectangle)
+            # cv2.imshow(f"image {ite}", rectangle)
+            
+            # Methods for characters recognition
+            best_template, template_path_description = feature_descriptor(rectangle, templates) 
+            # best_template, template_path_matching = template_matching(rectangle, templates)
+            best_template, template_path_shapes = shapes_matching(rectangle, templates)
+            # cv2.imshow(f'Best Match Template {ite}', best_template)
+            output_path_description += template_path_description
+            # output_path_matching += template_path_matching
+            output_path_shapes += template_path_shapes
             
             
-            # best_template, template_path = feature_descriptor(rectangle, templates) 
-            
-            best_template, template_path = template_matching(rectangle, templates)
-            print("path:", template_path)
-            cv2.imshow(f'Best Match Template {ite}', best_template)
+        print("image:             ", paths[i])
+        print("output matching:   ", output_path_matching)
+        print("output descriptor: ", output_path_description)
+        print("output shapes:     ", output_path_shapes)
         
-        print(paths[i])
         
+        # cv2.imshow("img", img_grey[i])
         key = cv2.waitKey(0)
 
         
