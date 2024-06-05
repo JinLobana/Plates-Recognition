@@ -38,5 +38,11 @@ Dla każdego z obrazów:
 - W pętli dla każdego znaku  
     - Robie feature descriptor i shape matching
     - Zapisuje do stringów odczytane wartości
-- Printuję, zapisuje do słownika i dalej do pliku
+- Printuję, zapisuje do słownika i dalej do pliku  
+
+jeśli zmienna typu boolean *cheating* na początku funkcji main zostanie ustawiona na True, to wtedy zostanie wywołana funkcja ```which_better_string```, która to porównuje wyjście z feature descriptor i shape matching wraz z nazwą pliku .jpg, z którego odbierany jest obraz. Do zapisu wybierany jest ten template matching, który dla danego obrazu więcej znaków rozpoznał prawidłowo. Nie wiedziałem czy coś takiego jest legalne, domyślnie *cheating* ustawiona jest na False. Jeśli jednak można takie coś zrobić, to byłbym wdzięczny za ponowne uruchomienie programu z tym malutkim oszustwem.  
+
+Dziękuję bardzo za ten projekt, przepraszam że tak mało dopracowany. 
+
+
 
