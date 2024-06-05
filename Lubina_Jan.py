@@ -7,6 +7,9 @@ import os
 import json
 
 
+
+
+############## processing images, detecting letters on plates ####################
 def preprocessing_img(input_dir,img,img_hsv,img_grey,paths):
     """Basic preprocessing"""
     # Is directory real
@@ -102,7 +105,7 @@ def detecting_plate(grey_img):
     
     return dst
 
-def plate_segmentation(plate):
+def isolating_letters_from_plate(plate):
     """finding region of interest for every letter/number"""
     plate_cp = plate.copy()
     
@@ -155,7 +158,7 @@ def plate_segmentation(plate):
             rectangles.append((cropped_image, left_upper_x))
             
             # drawing 
-            # cv2.rectangle(binary_output, (left_upper_x, left_upper_y), (right_lower_x, right_lower_y), color=(150,150,150), thickness=1)
+            cv2.rectangle(binary_output, (left_upper_x, left_upper_y), (right_lower_x, right_lower_y), color=(150,150,150), thickness=1)
     
     # Sorting to get rectangles in order from left to right
     rectangles_sorted = sorted(rectangles, key=lambda x: x[1])
@@ -170,12 +173,17 @@ def plate_segmentation(plate):
     
     return rectangles
      
+############## processing images, detecting letters on plates ####################
+
 def which_better_string(base, str1, str2):
-    """Function return string with more matches with base image"""
+    """Function return string with more matches with base image (more matches with original plate)"""
+    
     def hamming_distance(s1, s2):
         """Calculate the Hamming distance between two strings of equal length."""
         if len(s1) != len(s2):
             raise ValueError("Strings must be of the same length")
+        
+        # sum of every mistake in strings, bigger no. = more different strings
         return sum(ch1 != ch2 for ch1, ch2 in zip(s1, s2))
 
     # Make strings the same length as the base by padding with spaces
@@ -186,7 +194,7 @@ def which_better_string(base, str1, str2):
     # Calculate Hamming distances
     distance1 = hamming_distance(base, str1)
     distance2 = hamming_distance(base, str2)
-
+    
     # Return the string with the smaller distance
     return str1 if distance1 < distance2 else str2
 
@@ -288,9 +296,13 @@ def shapes_matching(image, templates):
 ############## character recognition, OCR models ####################    
 def main():
     """main function in plate detection"""
+    
+    cheating = False
+    
     # Creating arguments for calling script
     parser = argparse.ArgumentParser(description="Przetwarzanie obrazów")
     parser.add_argument("input_dir", type=str, help="Ścieżka do katalogu ze zdjęciami.")
+    parser.add_argument("output_file", type=str, help="Ścieżka do pliku wyjściowego.")
     args = parser.parse_args()
 
     # Global variables
@@ -298,7 +310,8 @@ def main():
     img = []; img_hsv = []; img_grey = []; paths = []
     i = 0 
     templates = {}
-    
+    dict_to_save = {}
+            
     # Reading templates
     for path in glob.glob("dane/letters_digits/*.png"):
         # Reading an image
@@ -310,21 +323,17 @@ def main():
     # Doing some preprocessing
     preprocessing_img(args.input_dir, img, img_hsv, img_grey, paths)
 
-    while key != 27:
-        if (key == ord('d')):
-            i += 1
-        elif key == ord('a'):
-            i -= 1
-        i = i%len(img)
+    for i, img in enumerate(img_grey):
 
+        # Detecting plate and finding region of interest for each letter
         print(i, ":")
+        plate = detecting_plate(img)
+        rectangles = isolating_letters_from_plate(plate)
         
-        plate = detecting_plate(img_grey[i])
-        rectangles = plate_segmentation(plate)
-        
-        # Variables for 
+        # Strings for detected writings on plates
         output_path_matching = ""; output_path_description = ""; output_path_shapes = ""
         
+        # Pattern matching, three methods
         for ite, rectangle in enumerate(rectangles):
             
             # Methods for characters recognition
@@ -340,26 +349,47 @@ def main():
             # Displaying best template
             # cv2.imshow(f'Best Match Template {ite}', best_template)
             
-            
-        print("image:             ", paths[i])
         # print("output matching:   ", output_path_matching)
+        print("image:             ", paths[i])
         print("output descriptor: ", output_path_description)
         print("output shapes:     ", output_path_shapes)
-        better = which_better_string(paths[i], output_path_description, output_path_shapes)
-        print("best:              ", better)
         
+        if cheating:
+            better = which_better_string(paths[i], output_path_description, output_path_shapes)
+            print("best:              ", better)
+            dict_to_save[paths[i]] = better
+        else:
+            dict_to_save[paths[i]] = output_path_shapes
         
-        cv2.imshow("img", img_grey[i])
-        key = cv2.waitKey(0)
+        # cv2.imshow("img", img_grey[i])
+        # key = cv2.waitKey(0)
 
+    # Save to other file
+    with open(args.output_file, 'w') as file:
+        json.dump(dict_to_save, file, indent=2)
         
-
     cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
     main()
 
-#         Testowany program zostanie uruchomiony z dwoma parametrami przekazanymi w linii poleceń: bezwzględną ścieżką do istniejącego folderu ze zdjęciami oraz bezwzględną ścieżką do nieistniejącego pliku wyjściowego.
 
-# w jaki sposób skonfigurować kod pythona wewnątrz pliku, ktory ma zostac uruchomiony w powyższy sposób?
+# funkcja liczaca score dla shape matching i feature descriptor
+#     score_descriptor = 0
+#     score_shape = 0
+
+# score_descriptor = 0
+# score_shape = 0
+# if distance1<distance2:
+#     score_descriptor += 1
+# elif distance2<distance1:
+#     score_shape += 1
+    
+# better, sd,ss = which_better_string(paths[i], output_path_description, output_path_shapes)
+    
+# score_descriptor += sd
+# score_shape += ss
+
+# print(score_descriptor)
+# print(score_shape)
