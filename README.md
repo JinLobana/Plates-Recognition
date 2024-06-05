@@ -33,7 +33,7 @@ Bardzo ciekawa i prosta metoda, dawała mi koniec końców najlepsze rezultaty. 
 ## ```main```
 
 O zmiennej *cheating* opowiem na końcu ;p . Tworzę argumenty do wywołania pliku, globalne zmienne, głównie listy, następnie wczytuję szablony, robię preprocessing.  
-> Dla każdego z obrazów:
+Dla każdego z obrazów:
 - Wykrywam tablice i znaki
 - W pętli dla każdego znaku  
     - Robie feature descriptor i shape matching
