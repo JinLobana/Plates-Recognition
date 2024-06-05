@@ -73,7 +73,7 @@ def detecting_plate(grey_img):
     
     # Aproximate biggest contour with poly function, looking for four corners
     # 0.03 - no errors, 0.025 - one error
-    epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+    epsilon = 0.03 * cv2.arcLength(largest_contour, True)
     approx = cv2.approxPolyDP(largest_contour, epsilon, True)
     
     # Is there exactly four contours?
@@ -341,10 +341,10 @@ def main():
             for ite, rectangle in enumerate(rectangles):
                 
                 # Methods for characters recognition
-                # best_template, template_path_description = feature_descriptor(rectangle, templates) 
+                best_template, template_path_description = feature_descriptor(rectangle, templates) 
                 best_template, template_path_shapes = shapes_matching(rectangle, templates)
                 
-                # output_path_description += template_path_description
+                output_path_description += template_path_description
                 output_path_shapes += template_path_shapes
                 
                 # best_template, template_path_matching = template_matching(rectangle, templates)
