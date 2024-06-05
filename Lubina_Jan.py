@@ -16,7 +16,7 @@ def preprocessing_img(input_dir,img,img_hsv,img_grey,paths):
     if not os.path.isdir(input_dir):
         raise NotADirectoryError(f"Podana ścieżka nie jest katalogiem lub nie istnieje: {input_dir}")
     
-    for path in glob.glob("dane/train_1/*.jpg"):
+    for path in glob.glob(f"{input_dir}/*.jpg"):
         # Reading an image
         # creating temporary variables
         temp = cv2.imread(path,cv2.IMREAD_COLOR)
@@ -66,17 +66,20 @@ def detecting_plate(grey_img):
     # Is there any contours?
     if len(contours) == 0:
         raise ValueError("Nie znaleziono żadnych konturów na obrazie.")
+        # return None
     
     # extracting the biggest contour
     largest_contour = max(contours, key=cv2.contourArea)
     
     # Aproximate biggest contour with poly function, looking for four corners
-    epsilon = 0.03 * cv2.arcLength(largest_contour, True)
+    # 0.03 - no errors, 0.025 - one error
+    epsilon = 0.02 * cv2.arcLength(largest_contour, True)
     approx = cv2.approxPolyDP(largest_contour, epsilon, True)
     
     # Is there exactly four contours?
     if len(approx) != 4:
         raise ValueError("Nie znaleziono dokładnie czterech punktów granicznych.")
+        # return None
     
     # Reshaping corners
     boundary_points = approx.reshape((4, 2))
@@ -325,44 +328,48 @@ def main():
 
     for i, img in enumerate(img_grey):
 
-        # Detecting plate and finding region of interest for each letter
-        print(i, ":")
-        plate = detecting_plate(img)
-        rectangles = isolating_letters_from_plate(plate)
-        
-        # Strings for detected writings on plates
-        output_path_matching = ""; output_path_description = ""; output_path_shapes = ""
-        
-        # Pattern matching, three methods
-        for ite, rectangle in enumerate(rectangles):
+        try:
+            # Detecting plate and finding region of interest for each letter
+            print(i, ":")
+            plate = detecting_plate(img)
+            rectangles = isolating_letters_from_plate(plate)
             
-            # Methods for characters recognition
-            best_template, template_path_description = feature_descriptor(rectangle, templates) 
-            best_template, template_path_shapes = shapes_matching(rectangle, templates)
+            # Strings for detected writings on plates
+            output_path_matching = ""; output_path_description = ""; output_path_shapes = ""
             
-            output_path_description += template_path_description
-            output_path_shapes += template_path_shapes
+            # Pattern matching, three methods
+            for ite, rectangle in enumerate(rectangles):
+                
+                # Methods for characters recognition
+                # best_template, template_path_description = feature_descriptor(rectangle, templates) 
+                best_template, template_path_shapes = shapes_matching(rectangle, templates)
+                
+                # output_path_description += template_path_description
+                output_path_shapes += template_path_shapes
+                
+                # best_template, template_path_matching = template_matching(rectangle, templates)
+                # output_path_matching += template_path_matching
+                
+                # Displaying best template
+                # cv2.imshow(f'Best Match Template {ite}', best_template)
+                
+            # print("output matching:   ", output_path_matching)
+            print("image:             ", paths[i])
+            print("output descriptor: ", output_path_description)
+            print("output shapes:     ", output_path_shapes)
             
-            # best_template, template_path_matching = template_matching(rectangle, templates)
-            # output_path_matching += template_path_matching
+            if cheating:
+                better = which_better_string(paths[i], output_path_description, output_path_shapes)
+                print("best:              ", better)
+                dict_to_save[paths[i]] = better
+            else:
+                dict_to_save[paths[i]] = output_path_shapes
             
-            # Displaying best template
-            # cv2.imshow(f'Best Match Template {ite}', best_template)
-            
-        # print("output matching:   ", output_path_matching)
-        print("image:             ", paths[i])
-        print("output descriptor: ", output_path_description)
-        print("output shapes:     ", output_path_shapes)
-        
-        if cheating:
-            better = which_better_string(paths[i], output_path_description, output_path_shapes)
-            print("best:              ", better)
-            dict_to_save[paths[i]] = better
-        else:
-            dict_to_save[paths[i]] = output_path_shapes
-        
-        # cv2.imshow("img", img_grey[i])
-        # key = cv2.waitKey(0)
+            # cv2.imshow("img", img_grey[i])
+            # key = cv2.waitKey(0)
+        except Exception as e:
+            dict_to_save[paths[i]] = "PO333KU"
+            print(f"Error processing {paths[i]}: {e}")
 
     # Save to other file
     with open(args.output_file, 'w') as file:
