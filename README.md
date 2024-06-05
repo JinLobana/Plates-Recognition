@@ -21,8 +21,8 @@ Następnie pracowałem tylko na szarym obrazie, nie zdążyłem porównać efekt
 Wykonałem trzy metody, niestety żadna nie okazała się wystarczająco skuteczna. Prawdopodobnie można pobawić się jeszcze filtracją obrazu, znalezieniem odpowiednich paramtrów wszystkich funkcji etc., ale niestety nie było już na to czasu. 
 
 ### ```feature_descriptor```
-> Tworzy deskryptor SIFT. dostaje jeden znak do rozpoznania i liste szablonów odpowiednio przygotowanych obrazów w czcionce, jaka jest używana na polskich tablicach rejestracyjnych. Obrazy te tworzy skrypt ```scripts/generating_dataset.py```. Tworzy matcher, używa knn match, liczy dystans za pomocą testu Lowe'a. Najlepszy template jest zwracany.  
-> Problemem jest odwracanie (np. 7 są wykrywane jako L), ale nie idzie dobrać skalującego deskryptora, który jednocześnie nie uwzględnia rotacji szblonów. 
+- Tworzy deskryptor SIFT. dostaje jeden znak do rozpoznania i liste szablonów odpowiednio przygotowanych obrazów w czcionce, jaka jest używana na polskich tablicach rejestracyjnych. Obrazy te tworzy skrypt ```scripts/generating_dataset.py```. Tworzy matcher, używa knn match, liczy dystans za pomocą testu Lowe'a. Najlepszy template jest zwracany.  
+- Problemem jest odwracanie (np. 7 są wykrywane jako L), ale nie idzie dobrać skalującego deskryptora, który jednocześnie nie uwzględnia rotacji szblonów. 
 
 ### ```template_matching```
 Najprostszy template matching jaki istnieje. Beznadzijne wyniki dostawałem niestety. *minMaxLoc* funkcja używana do obliczania najlepszego dopasowania. 
