@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
 import glob2 as glob
 import argparse
 import os
@@ -205,7 +204,7 @@ def which_better_string(base, str1, str2):
 ############## character recognition, OCR models ####################
 def feature_descriptor(image, templates):
     """ using SIFT descriptor for matching templates with images"""
-    
+    image = cv2.resize(image, (50,80))
     lowe_ratio = 0.60
     best_match_templates = []
     
@@ -259,6 +258,7 @@ def template_matching(image, templates):
     best_match = None
     best_match_value = 0
     best_match_template = None
+    image = cv2.resize(image, (50,80))
 
     for id, template in templates.items():
         res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
@@ -275,7 +275,7 @@ def template_matching(image, templates):
     
 def shapes_matching(image, templates):
     """using matchShapes method to compare similarity between img and templates"""
-    
+    image = cv2.resize(image, (50,80))
     best_match_template = None
     best_similarity = 100.0
     
